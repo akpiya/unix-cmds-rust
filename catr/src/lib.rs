@@ -28,6 +28,7 @@ pub fn get_args() -> MyResult<Config> {
         .arg(
             Arg::with_name("number")
                 .short("n")
+                .long("number")
                 .help("Number lines")
                 .takes_value(false)
                 .conflicts_with("number_nonblank")
@@ -35,6 +36,7 @@ pub fn get_args() -> MyResult<Config> {
         .arg(
             Arg::with_name("number_nonblank")
                 .short("b")
+                .long("number-nonblank")
                 .help("Number non-blank lines")
                 .takes_value(false)
 
@@ -58,7 +60,29 @@ pub fn run(config: Config) -> MyResult<()> {
     for filename in config.files {
         match open(&filename) {
             Err(err) => eprintln!("Failed to open {}: {}", filename, err),
-            Ok(_) => eprintln!("Opened {}", filename)
+            Ok(reader) => {
+                let mut counter = 1;
+                for line in reader.lines() {
+                    match line {
+                        Err(_) => {},
+                        Ok(string) => {
+                            if config.number_nonblank_lines {
+                                if string.is_empty() {
+                                    println!();
+                                } else {
+                                    println!("{:6}\t{}", counter, string);
+                                    counter += 1
+                                }
+                            } else if config.number_lines {
+                                println!("{:6}\t{}", counter, string);
+                                counter += 1;
+                            } else {
+                                println!("{}", string);
+                            }
+                        }
+                    }
+                }
+            },
         }
     }
     Ok(())
