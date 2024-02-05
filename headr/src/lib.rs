@@ -79,15 +79,35 @@ fn test_parse_positive_int() {
     assert_eq!(res.unwrap_err().to_string(), "0".to_string());
 }
 
-pub fn run(config: Config) -> MyResult<()> {
+pub fn run(config: Config) -> MyResult<()> { 
+    let length = config.files.len();
     for filename in config.files {
         match open(&filename) {
             Err(err) => eprintln!("{}: {}", filename, err),
             Ok(mut reader) => {
-                println!("==> {} <==", filename);
-                let mut string = String::new();
-                while let Ok(_) = reader.read_line(&mut string) {
-                    print!("{}", string);
+                if length > 1 {
+                    println!("==> {} <==", filename);
+                }
+                match config.bytes {
+                    // Print the corresponding number of bytes
+                    Some(num_bytes) => {
+                        let mut buf = vec![0u8; num_bytes];
+                        let bytes = reader.read_exact(&mut buf);
+                        if bytes == 0 {
+                            break;
+                        }
+                        let s = String::from_utf8_lossy(&buf);
+                        print!("{}", s);
+                    },
+                    // Print corresponding number of lines
+                    None => {
+                        for _line_num in 0..config.lines {
+                            let mut string = String::new();
+                            if let Ok(_) = reader.read_line(&mut string) {
+                                print!("{}", string);
+                            }
+                        }
+                    },
                 }
             },
         }
