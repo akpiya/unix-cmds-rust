@@ -14,6 +14,62 @@ pub struct Config {
     chars: bool,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct FileInfo {
+    num_lines: usize,
+    num_words: usize,
+    num_bytes: usize,
+    num_chars: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{count, FileInfo};
+    use std::io::Cursor;
+
+    #[test]
+    fn test_count() {
+        let text = "I don't want the world. I just want your half.\r\n";
+        let info = count(Cursor::new(text));
+        assert!(info.is_ok());
+        let expected = FileInfo {
+            num_lines: 1,
+            num_words: 10,
+            num_chars: 48,
+            num_bytes: 48,
+        };
+        assert_eq!(info.unwrap(), expected);
+    }
+}
+
+pub fn count(mut file: impl BufRead) -> MyResult<FileInfo> {
+
+    let mut num_lines = 0;
+    let mut num_words = 0;
+    let mut num_bytes = 0;
+    let mut num_chars = 0; 
+    let mut string = String::new();
+
+    while let Ok(res) = file.read_line(&mut string){
+        if res > 0 && (!string.eq("\n") || !string.eq("\r\n")) {
+            num_lines += 1;
+            num_words += string.split_whitespace().count();
+            num_bytes += res; 
+            num_chars += string.chars().count();
+            string.clear();
+        } else{
+            break;
+        }
+    }
+
+    Ok(FileInfo {
+        num_lines,
+        num_words,
+        num_bytes,
+        num_chars,
+    })
+}
+
 
 pub fn get_args() -> MyResult<Config> {
     let matches = App::new("wcr")
@@ -91,15 +147,56 @@ fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
 
 
 pub fn run(config: Config) -> MyResult<()> {
+    let mut line_sum = 0;
+    let mut word_sum = 0;
+    let mut byte_sum = 0;
+    let mut char_sum = 0;
     for filename in &config.files {
         match open(filename) {
             Err(err) => eprintln!("{}: {}", filename, err),
-            Ok(_) => println!("Opened {}", filename),
+            Ok(file) => {
+                if let Ok(counts) = count(file) {
+                    if config.lines {
+                        print!("{:8}", counts.num_lines);
+                        line_sum += counts.num_lines;
+                    }
+                    if config.words {
+                        print!("{:8}", counts.num_words);
+                        word_sum += counts.num_words;
+                    }
+                    if config.bytes {
+                        print!("{:8}", counts.num_bytes);
+                        byte_sum += counts.num_bytes;
+                    }
+                    if config.chars {
+                        print!("{:8}", counts.num_chars);
+                        char_sum += counts.num_chars;
+                    }
+                    if !config.files[0].eq("-") {
+                        println!(" {}", filename);
+                    } else {
+                        println!();
+                    }
+                }
+            },
         }
     }
+    if config.files.len() > 1 {
+        if config.lines {
+            print!("{:8}", line_sum);
+        }
+        if config.words {
+            print!("{:8}", word_sum);
+        }
+        if config.bytes {
+            print!("{:8}", byte_sum);
+        }
+        if config.chars {
+            print!("{:8}", char_sum);
+        }
+        println!(" total")
+    }
+
+    
     Ok(())
 }
-
-
-
-
