@@ -48,6 +48,13 @@ mod unit_tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
+            "illegal list value: \"+1-2\"",
+            );
+
+        let res = parse_pos("1-+2");
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
             "illegal list value: \"1-+2\"",
             );
 
@@ -204,23 +211,45 @@ pub fn get_args() -> MyResult<Config> {
     })
 }
 
+
+fn is_numeric(s: &str) -> bool {
+    s.chars().all(|c| c.is_digit(10))
+}
+
 fn parse_pos(range: &str) -> MyResult<PositionList> {
     let mut pos_list = PositionList::new();
     for str_range in range.split(",") {
         let start_str: String = str_range.chars().take_while(|&c| c != '-').collect();
-        let end_str: String = str_range.chars().skip_while(|&c| c != '-').collect();
-        
-        let start: usize = match start_str.parse() {
-            Ok(n) if n > 0 => n,
-            Ok(n) => return Err(format!("illegal list value: \"{}\"", n).into()),
-            Err(e) => return Err(new(format!("illegal list value: \"{}\"", start_str).into())),
-        };
+        let end_str: String = str_range.chars().skip_while(|&c| c != '-').skip(1).collect();
 
-        let end: usize = match end_str.parse() {
+        println!("{}", str_range);
+        println!("{} {}", start_str.len(), end_str.len());
+        println!("{:?}", start_str.parse::<usize>());
+        println!();
+
+        if !is_numeric(&start_str) || (!is_numeric(&end_str) && end_str.len() != 0) ||
+            (str_range.contains('-') && end_str.len() == 0){
+            return Err(format!("illegal list value: \"{}\"", str_range).into());
+        }
+
+        let mut start: usize = match start_str.parse() {
             Ok(n) if n > 0 => n,
-            Ok(n) => return Err(format!("illegal list value: \"{}\"", n).into()),
-            Err(e) => return Err(format!("illegal list value: \"{}\"", end_str).into()),
+            Ok(_) => return Err(format!("illegal list value: \"{}\"", start_str).into()),
+            Err(_) => return Err(format!("illegal list value: \"{}\"", str_range).into()),
         };
+        
+        let mut end: usize = 0;
+        if end_str.len() != 0 {
+            end = match end_str.parse() {
+                Ok(n) if n > 0 => n,
+                Ok(_) => return Err(format!("illegal list value: \"{}\"", end_str).into()),
+                Err(_) => return Err(format!("illegal list value: \"{}\"", str_range).into()),
+            };
+            start -= 1
+        } else {
+            end = start;
+            start = end - 1;
+        }
         
         if start >= end {
             return Err(format!(
