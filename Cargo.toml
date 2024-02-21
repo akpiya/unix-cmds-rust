@@ -1,4 +1,4 @@
-workspace = { members = [ "catr","echor", "headr"] }
+workspace = { members = [ "catr", "cutr","echor", "findr", "headr", "uniqr", "wcr"] }
 [package]
 name = "unix-commands-rust"
 version = "0.1.0"

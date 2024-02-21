@@ -213,7 +213,7 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
         let start: usize = match start_str.parse() {
             Ok(n) if n > 0 => n,
             Ok(n) => return Err(format!("illegal list value: \"{}\"", n).into()),
-            Err(e) => return Err(format!("illegal list value: \"{}\"", start_str).into()),
+            Err(e) => return Err(new(format!("illegal list value: \"{}\"", start_str).into())),
         };
 
         let end: usize = match end_str.parse() {

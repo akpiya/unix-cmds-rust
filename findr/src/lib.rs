@@ -1,8 +1,9 @@
 use crate::EntryType::*;
 use clap::{App, Arg};
 use regex::Regex;
-use std::{collections::btree_map::Entry, error::Error};
+use std::{error::Error};
 use walkdir::WalkDir;
+use walkdir::{DirEntry};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -83,36 +84,41 @@ pub fn get_args() -> MyResult<Config> {
 
 pub fn run(config: Config) -> MyResult<()> {
     // println!("{:?}", config);
-    for path in config.paths {
-        for entry in WalkDir::new(path).follow_links(true) {
-            match entry {
-                Err(e) => eprintln!("{}", e),
-                Ok(val) => {
-                    //println!("{:?}", val);
-                    let filename = val.file_name().to_string_lossy();
-                    // println!("{}", filename);
-                    
-                    if config.names.iter().any(|regex| regex.is_match(&filename)) || config.names.len() == 0 {
-                        let filetype: Option<EntryType>;
-                        if val.file_type().is_file() {
-                            filetype = Some(EntryType::File);
-                        } else if val.file_type().is_dir() {
-                            filetype = Some(EntryType::Dir);
-                        } else if val.file_type().is_symlink() {
-                            filetype = Some(EntryType::Link);
-                        } else{
-                            filetype = None;
-                        }
+    let type_filter = |entry: &DirEntry| {
+        config.entry_types.is_empty()
+            || config
+                .entry_types
+                .iter()
+                .any(|entry_type| match entry_type {
+                    Link => entry.file_type().is_symlink(),
+                    Dir => entry.file_type().is_dir(),
+                    File => entry.file_type().is_file(),
+                })
+    };
 
-                        if let Some(ftype) = filetype {
-                            if config.entry_types.contains(&ftype) || config.entry_types.len() == 0 {
-                                println!("{}", val.path().display());
-                            }
-                        }
-                    }
-                },
-            }
-        }
+    let name_filter = |entry: &DirEntry| {
+        config.names.is_empty()
+            || config
+                .names
+                .iter()
+                .any(|re| re.is_match(&entry.file_name().to_string_lossy()))
+    };
+
+    for path in config.paths {
+        let entries = WalkDir::new(path)
+            .into_iter()
+            .filter_map(|e| match e {
+                Err(e) => {
+                    eprintln!("{}", e);
+                    None
+                }
+                Ok(entry) => Some(entry),
+            })
+            .filter(type_filter)
+            .filter(name_filter)
+            .map(|entry| entry.path().display().to_string())
+            .collect::<Vec<_>>();
+        println!("{}",entries.join("\n"));
     }
     Ok(())
 }
