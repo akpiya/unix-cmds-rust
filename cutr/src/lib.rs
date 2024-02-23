@@ -1,9 +1,12 @@
 use crate::Extract::*;
+use std::fmt::write;
+use std::io;
 use clap::{App, Arg};
 use csv::Position;
 use std::{ops::Range};
 use std::error::Error;
-
+use std::io::{BufReader, BufRead};
+use std::fs::File;
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 type PositionList = Vec<Range<usize>>;
@@ -25,6 +28,32 @@ pub struct Config {
 #[cfg(test)]
 mod unit_tests {
     use super::parse_pos;
+    use super::extract_chars;
+    use super::extract_bytes;
+
+    #[test]
+    fn test_extract_chars() {
+        assert_eq!(extract_chars("", &[0..1]), "".to_string());
+        assert_eq!(extract_chars("ábc", &[0..1]), "á".to_string());
+        assert_eq!(extract_chars("ábc", &[0..1, 2..3]), "ác".to_string());
+        assert_eq!(extract_chars("ábc", &[0..3]), "ábc".to_string());
+        assert_eq!(extract_chars("ábc", &[2..3, 1..2]), "cb".to_string());
+        assert_eq!(
+            extract_chars("ábc", &[0..1, 1..2, 4..5]),
+            "áb".to_string()
+            );
+    }
+
+    #[test]
+    fn test_extract_bytes() {
+        assert_eq!(extract_bytes("ábc", &[0..1]), "�".to_string());
+        assert_eq!(extract_bytes("ábc", &[0..2]), "á".to_string());
+        assert_eq!(extract_bytes("ábc", &[0..3]), "áb".to_string());
+        assert_eq!(extract_bytes("ábc", &[0..4]), "ábc".to_string());
+        assert_eq!(extract_bytes("ábc", &[3..4, 2..3]), "cb".to_string());
+        assert_eq!(extract_bytes("ábc", &[0..2, 5..6]), "á".to_string());
+    }
+
     #[test]
     fn test_parse_pos() {
         assert!(parse_pos("").is_err());
@@ -197,18 +226,31 @@ pub fn get_args() -> MyResult<Config> {
             Extract::Chars(parse_pos(str_range)?) 
         } else if let Some(str_range) = matches.value_of("bytes") {
             Extract::Bytes(parse_pos(str_range)?)
-        } else if let Some(str_range) = matches.value_of("files") {
+        } else if let Some(str_range) = matches.value_of("fields") {
             Extract::Fields(parse_pos(str_range)?)
         } else {
             return Err(From::from("Must have --fields, --bytes, or --chars"));
         }
     };
+    let delim = matches.value_of("delim").unwrap();
 
-    Ok(Config{
+    if delim.as_bytes().len() != 1 {
+        return Err(format!("--delim \"{}\" must be a single byte", delim).into());
+    }
+
+    let a = Ok(Config{
         files: matches.values_of_lossy("files").unwrap(),
-        delimiter: matches.value_of("delim").unwrap().as_bytes()[0].clone(),
+        delimiter: delim.as_bytes()[0].clone(),
         extract,
-    })
+    });
+    return a;
+}
+
+fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
+    match filename {
+        "-" => Ok(Box::new(BufReader::new(io::stdin()))),
+        _ => Ok(Box::new(BufReader::new(File::open(filename)?)))
+    }
 }
 
 
@@ -221,11 +263,6 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
     for str_range in range.split(",") {
         let start_str: String = str_range.chars().take_while(|&c| c != '-').collect();
         let end_str: String = str_range.chars().skip_while(|&c| c != '-').skip(1).collect();
-
-        println!("{}", str_range);
-        println!("{} {}", start_str.len(), end_str.len());
-        println!("{:?}", start_str.parse::<usize>());
-        println!();
 
         if !is_numeric(&start_str) || (!is_numeric(&end_str) && end_str.len() != 0) ||
             (str_range.contains('-') && end_str.len() == 0){
@@ -245,29 +282,57 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
                 Ok(_) => return Err(format!("illegal list value: \"{}\"", end_str).into()),
                 Err(_) => return Err(format!("illegal list value: \"{}\"", str_range).into()),
             };
-            start -= 1
+
+        
+            if start >= end {
+                return Err(format!(
+                            "First number in range ({}) must be lower than the second number ({})",
+                            start,
+                            end
+                        ).into());
+            }
         } else {
             end = start;
-            start = end - 1;
-        }
-        
-        if start >= end {
-            return Err(format!(
-                        "First number in range ({}) must be lower than the second number ({})",
-                        start,
-                        end
-                    ).into());
+            start = end;
         }
 
         pos_list.push(Range::<usize> {
-            start,
+            start: start - 1,
             end,
         });
     }
     Ok(pos_list)
 }
 
+fn extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
+    let mut ret_string = String::new();
+    for range in char_pos {
+        println!("{} {}", range.start, range.end);
+        println!("{}", line);
+        println!();
+        
+        if range.end <= line.len() {
+            ret_string.push_str(
+                &line.chars().enumerate()
+                    .filter(|(&index, _)| range.start <= *index && range.end > *index)
+                    .collect::<String>()
+                );
+        }
+    
+    }
+    ret_string
+}
+
+fn extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
+    unimplemented!();
+}
+
 pub fn run(config: Config) -> MyResult<()> {
-    println!("{:#?}", &config);
+    for filename in &config.files {
+        match open(filename) {
+            Err(err) => eprintln!("{}: {}", filename, err),
+            Ok(_) => println!("Opened {}", filename),
+        }
+    }
     Ok(())
 }
