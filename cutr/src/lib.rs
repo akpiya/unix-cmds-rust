@@ -305,26 +305,37 @@ fn parse_pos(range: &str) -> MyResult<PositionList> {
 }
 
 fn extract_chars(line: &str, char_pos: &[Range<usize>]) -> String {
-    let mut ret_string = String::new();
-    for range in char_pos {
-        println!("{} {}", range.start, range.end);
-        println!("{}", line);
-        println!();
+    let mut ret = String::new();
+    let line_char = line.chars().collect::<Vec<_>>();
+    for range in char_pos{
+        let start_opt = if range.start < line_char.len() {Some(range.start)} else {None};
+        let end = if range.end < line_char.len() {range.end} else {line_char.len()};
         
-        if range.end <= line.len() {
-            ret_string.push_str(
-                &line.chars().enumerate()
-                    .filter(|(&index, _)| range.start <= *index && range.end > *index)
-                    .collect::<String>()
-                );
+        if let Some(start) = start_opt {
+            ret.push_str(&line_char[start..end]
+                .iter()
+                .map(|&x| x.to_string())
+                .collect::<String>()
+            );
         }
-    
     }
-    ret_string
+    ret
 }
 
 fn extract_bytes(line: &str, byte_pos: &[Range<usize>]) -> String {
-    unimplemented!();
+    let mut ret = String::new();
+    let line_bytes = line.bytes().collect::<Vec<_>>();
+
+    for range in byte_pos {
+        let start_opt = if range.start < line_bytes.len() {Some(range.start)} else {None};
+        let end = if range.end < line_bytes.len() {range.end} else {line_bytes.len()};
+        
+        if let Some(start) = start_opt {
+            let selected_bytes = &line_bytes[start..end];
+            ret.push_str(String::from_utf8_lossy(selected_bytes).into_owned().as_str());
+        }
+    }
+    ret
 }
 
 pub fn run(config: Config) -> MyResult<()> {

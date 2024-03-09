@@ -43,13 +43,13 @@ pub fn get_args() -> MyResult<Config> {
         )
         .get_matches();
     Ok(Config {
-        files: matches.values_of_lossy("files").unwrap(), 
+        files: matches.values_of_lossy("files").unwrap(),
         number_lines : matches.is_present("number"),
         number_nonblank_lines : matches.is_present("number_nonblank")
     })
 }
 
-fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
+fn open(filename:
     match filename {
         "-" => Ok(Box::new(BufReader::new(io::stdin()))),
         _ => Ok(Box::new(BufReader::new(File::open(filename)?))),

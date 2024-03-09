@@ -1,9 +1,9 @@
 use crate::EntryType::*;
 use clap::{App, Arg};
 use regex::Regex;
-use std::{error::Error};
+use std::error::Error;
+use walkdir::DirEntry;
 use walkdir::WalkDir;
-use walkdir::{DirEntry};
 
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
@@ -21,7 +21,6 @@ pub struct Config {
     entry_types: Vec<EntryType>,
 }
 
-
 pub fn get_args() -> MyResult<Config> {
     let matches = App::new("findr")
         .version("0.1.0")
@@ -32,8 +31,8 @@ pub fn get_args() -> MyResult<Config> {
                 .value_name("PATH")
                 .help("Search paths")
                 .default_value(".")
-                .multiple(true)
-            )
+                .multiple(true),
+        )
         .arg(
             Arg::with_name("names")
                 .value_name("NAME")
@@ -41,28 +40,32 @@ pub fn get_args() -> MyResult<Config> {
                 .long("name")
                 .help("Name")
                 .takes_value(true)
-                .multiple(true)
-            )
+                .multiple(true),
+        )
         .arg(
             Arg::with_name("types")
                 .value_name("TYPE")
                 .short("t")
                 .long("type")
-                .help("Entry type") 
+                .help("Entry type")
                 .possible_values(&["f", "d", "l"])
                 .multiple(true)
-                .takes_value(true)
-            )
+                .takes_value(true),
+        )
         .get_matches();
 
-    let names = matches.values_of_lossy("names").map(|pat| {
-        pat.into_iter().map(|name| {
-            Regex::new(&name)
-                .map_err(|_| format!("Invalid --name \"{}\"", name))
-        }).collect::<Result<Vec<_>,_>>()
-    }).transpose()?.unwrap_or_default();
+    let names = matches
+        .values_of_lossy("names")
+        .map(|pat| {
+            pat.into_iter()
+                .map(|name| Regex::new(&name).map_err(|_| format!("Invalid --name \"{}\"", name)))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
 
-    let entry_types = matches.values_of_lossy("types")
+    let entry_types = matches
+        .values_of_lossy("types")
         .map(|vals| {
             vals.iter()
                 .map(|val| match val.as_str() {
@@ -72,15 +75,15 @@ pub fn get_args() -> MyResult<Config> {
                     _ => unreachable!("Invalid Type"),
                 })
                 .collect()
-        }).unwrap_or_default();
+        })
+        .unwrap_or_default();
 
     Ok(Config {
         paths: matches.values_of_lossy("paths").unwrap(),
         names,
-        entry_types, 
+        entry_types,
     })
 }
-
 
 pub fn run(config: Config) -> MyResult<()> {
     // println!("{:?}", config);
@@ -118,7 +121,7 @@ pub fn run(config: Config) -> MyResult<()> {
             .filter(name_filter)
             .map(|entry| entry.path().display().to_string())
             .collect::<Vec<_>>();
-        println!("{}",entries.join("\n"));
+        println!("{}", entries.join("\n"));
     }
     Ok(())
 }
